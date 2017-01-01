@@ -20,7 +20,7 @@ bread.theme = {
 	font = love.graphics.getFont()
 }
 
-bread.watching = setmetatable({}, {__tostring = function() return "Bread" end})
+bread.watching = {}
 bread.minimized = {}
 bread.names = {}
 
