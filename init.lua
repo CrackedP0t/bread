@@ -105,7 +105,7 @@ end
 bread.watch = function(thing, name)
 	assert(type(thing) == "table")
 
-	bread.watching[name] = thing
+	bread.watching[name or #bread.watching + 1] = thing
 
 	return thing
 end
