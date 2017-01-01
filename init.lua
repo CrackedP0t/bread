@@ -23,7 +23,6 @@ bread.theme = {
 bread.saves = {}
 bread.watching = {}
 bread.minimized = {}
-bread.names = {}
 bread.filters = {}
 
 bread.scrollOffset = 0
@@ -278,23 +277,18 @@ bread.draw = function()
 					love.graphics.pop()
 				end
 
-				local dispKey = true
 				local name
-				if bread.names[value] then
-					name = "*" .. bread.names[value] .. "*"
-				else
-					dispKey = type(key) ~= "number" or bread.opts.dispNumberKeys
-					name = tostring(key)
+				local dispKey = type(key) ~= "number" or bread.opts.dispNumberKeys
+				name = tostring(key)
 
-					if type(key) ~= "string" or not bread.validID(name) then
-						if type(key) == "string" then
-							name = "\"" .. name .. "\""
-						end
-						if type(key) == "table" or bread.isBinary(v) then
-							name = "<" .. name .. ">"
-						end
-						name = "[" .. name .. "]"
+				if type(key) ~= "string" or not bread.validID(name) then
+					if type(key) == "string" then
+						name = "\"" .. name .. "\""
 					end
+					if type(key) == "table" or bread.isBinary(v) then
+						name = "<" .. name .. ">"
+					end
+					name = "[" .. name .. "]"
 				end
 
 				local strung
