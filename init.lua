@@ -172,6 +172,7 @@ end
 
 bread.load = function(name)
 	local save = bread.saves[name]
+
 	bread.watching = save.watching
 	bread.minimized = save.minimized
 	bread.filters = save.filters
