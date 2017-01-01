@@ -1,4 +1,4 @@
-local titter = require("titter")
+local titter = require(... .. ".titter")
 
 local bread = {}
 
