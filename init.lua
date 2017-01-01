@@ -20,6 +20,7 @@ bread.theme = {
 	font = love.graphics.getFont()
 }
 
+bread.saves = {}
 bread.watching = {}
 bread.minimized = {}
 bread.names = {}
@@ -143,6 +144,28 @@ bread.doMinimize = function(x, y)
 			end
 		end
 	end
+end
+
+-- General user functions
+
+bread.save = function(name)
+	bread.saves[name] = bread.watching
+end
+
+bread.unsave = function(name)
+	bread.saves[name] = nil
+end
+
+bread.load = function(name)
+	bread.watching = bread.saves[name]
+end
+
+bread.reset = function(name)
+	if name then
+		bread.save(name)
+	end
+
+	bread.watching = {}
 end
 
 bread.mousepressed = function(x, y, b)
