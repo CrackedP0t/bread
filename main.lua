@@ -1,11 +1,14 @@
-local bread = require("init") -- This is because the Bread library is in this folder.
+local bread = loadfile("init.lua")("") -- This is because the Bread library is in this folder.
 -- Change this in your projects!
+
+local toBeFiltered = {filterMe = true, {{{{{}}}}}}
 
 local static = {
 	t1 = {["1 *"] = "asdf", "asdfg", a = 1},
 	{t = {"a", "b", {}}},
 	{{{"hi"}}},
-	[coroutine.create(function()end)] = 5
+	[coroutine.create(function()end)] = 5,
+	toBeFiltered = toBeFiltered
 }
 
 local keys = {}
@@ -14,6 +17,11 @@ local presses = {}
 bread.watch(static, "Static")
 bread.watch(keys, "Keys")
 bread.watch(presses, "Presses")
+bread.watch({"a"}, "Last")
+
+bread.filter(function(t)
+		return t.filterMe
+end)
 
 function love.draw()
 	bread.draw()

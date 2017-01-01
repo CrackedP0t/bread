@@ -24,6 +24,7 @@ bread.saves = {}
 bread.watching = {}
 bread.minimized = {}
 bread.names = {}
+bread.filters = {}
 
 bread.scrollOffset = 0
 
@@ -104,8 +105,7 @@ end
 bread.watch = function(thing, name)
 	assert(type(thing) == "table")
 
-	bread.watching[#bread.watching + 1] = thing
-	bread.names[thing] = name
+	bread.watching[name] = thing
 
 	return thing
 end
@@ -114,42 +114,56 @@ bread.doMinimize = function(x, y)
 	local minimizeLevel = 0
 	local tDepth = bread.screenToDepth(y)
 	local yDepth = 0
-	local alreadyEnded = false
-	for f, k, v, l, e in bread.iter() do
+
+	for finish, key, value, last, empty in bread.iter() do
+		local filtered = bread.isFiltered(value)
 		if minimizeLevel == 0 then
-			if yDepth == tDepth then
-				if type(v) == "table" and not e then
-					bread.minimized[v] = not bread.minimized[v]
+			if yDepth == tDepth and not finish then
+				if type(value) == "table" and not empty then
+					bread.minimized[value] = not bread.minimized[value]
 				end
 
 				break
 			end
 
-			if not alreadyEnded then
+			if not finish then
+				yDepth = yDepth + 1
+			elseif not value then
 				yDepth = yDepth + 1
 			end
 
-			alreadyEnded = false
-
-			if e then
-				alreadyEnded = true
-			elseif bread.minimized[v] then
+			if bread.minimized[value] or filtered then
 				minimizeLevel = 1
 			end
 		else
-			if f then
+			if finish then
 				minimizeLevel = minimizeLevel - 1
-			elseif type(v) == "table" then
+			elseif type(value) == "table" then
 				minimizeLevel = minimizeLevel + 1
 			end
 		end
 	end
 end
 
+bread.isFiltered = function(thing)
+	if type(thing) == "table" then
+		for filter in pairs(bread.filters) do
+			if filter(thing) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- General user functions
 
 bread.save = function(name)
-	bread.saves[name] = bread.watching
+	bread.saves[name] = {
+		watching = bread.watching,
+		minimized = bread.minimized,
+		filters = bread.filters
+	}
 end
 
 bread.unsave = function(name)
@@ -157,7 +171,10 @@ bread.unsave = function(name)
 end
 
 bread.load = function(name)
-	bread.watching = bread.saves[name]
+	local save = bread.saves[name]
+	bread.watching = save.watching
+	bread.minimized = save.minimized
+	bread.filters = save.filters
 end
 
 bread.reset = function(name)
@@ -166,6 +183,17 @@ bread.reset = function(name)
 	end
 
 	bread.watching = {}
+	bread.minimized = {}
+	bread.filters = {}
+end
+
+bread.filter = function(filter)
+	bread.filters[filter] = true
+	return filter
+end
+
+bread.unfilter = function(filter)
+	bread.filters[filter] = nil
 end
 
 bread.mousepressed = function(x, y, b)
@@ -227,6 +255,7 @@ bread.draw = function()
 	local alreadyEnded = false
 	for finish, key, value, last, empty in bread.iter() do
 		local minimized = bread.minimized[value]
+		local filtered = bread.isFiltered(value)
 
 		if minimizeLevel == 0 then
 			if finish then
@@ -269,14 +298,18 @@ bread.draw = function()
 
 				local strung
 				if type(value) == "table" then
-					strung = "{"
-					if minimized then
-						strung = strung .. "...}"
-					elseif empty then
-						strung = strung .. "}"
-						alreadyEnded = true
+					if filtered then
+						strung = "(filtered: <" .. tostring(value) .. ">)"
+					else
+						strung = "{"
+						if minimized then
+							strung = strung .. "...}"
+						elseif empty then
+							strung = strung .. "}"
+							alreadyEnded = true
+						end
 					end
-					if (minimized or empty) and not last then
+					if (minimized or empty or filtered) and not last then
 						strung = strung .. ","
 					end
 				else
@@ -295,7 +328,7 @@ bread.draw = function()
 
 				bread.drawText((dispKey and name .. " = " or "") .. strung, xDepth, yDepth)
 
-				if minimized then
+				if minimized or filtered then
 					minimizeLevel = 1
 				elseif type(value) == "table" then
 					xDepth = xDepth + 1
