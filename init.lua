@@ -27,6 +27,8 @@ bread.filters = {}
 
 bread.scrollOffset = 0
 
+bread.active = true
+
 bread.isBinary = function(v)
 	return type(v) == "thread" or type(v) == "userdata" or type(v) == "function"
 end
@@ -40,7 +42,7 @@ bread.validID = function(k)
 end
 
 bread.iter = function()
-	return titter(bread.watching, "Bread")
+	return titter(bread.watching, "Bread", bread.isFiltered)
 end
 
 bread.getRowHeight = function()
@@ -114,30 +116,29 @@ bread.doMinimize = function(x, y)
 	local tDepth = bread.screenToDepth(y)
 	local yDepth = 0
 
-	for finish, key, value, last, empty in bread.iter() do
-		local filtered = bread.isFiltered(value)
+	for data in bread.iter() do
 		if minimizeLevel == 0 then
-			if yDepth == tDepth and not finish then
-				if type(value) == "table" and not empty then
-					bread.minimized[value] = not bread.minimized[value]
+			if yDepth == tDepth and not data.finish then
+				if type(data.value) == "table" and not data.empty then
+					bread.minimized[data.value] = not bread.minimized[data.value]
 				end
 
 				break
 			end
 
-			if not finish then
+			if not data.finish then
 				yDepth = yDepth + 1
-			elseif not value then
+			elseif not data.empty then
 				yDepth = yDepth + 1
 			end
 
-			if bread.minimized[value] or filtered then
+			if bread.minimized[data.value] then
 				minimizeLevel = 1
 			end
 		else
-			if finish then
+			if data.finish then
 				minimizeLevel = minimizeLevel - 1
-			elseif type(value) == "table" then
+			elseif type(data.value) == "table" and not data.filtered and not data.found then
 				minimizeLevel = minimizeLevel + 1
 			end
 		end
@@ -145,17 +146,31 @@ bread.doMinimize = function(x, y)
 end
 
 bread.isFiltered = function(thing)
-	if type(thing) == "table" then
-		for filter in pairs(bread.filters) do
-			if filter(thing) then
-				return true
-			end
+	for filter in pairs(bread.filters) do
+		if filter(thing) then
+			return true
 		end
 	end
 	return false
 end
 
 -- General user functions
+
+bread.on = function()
+	bread.active = true
+end
+
+bread.off = function()
+	bread.active = false
+end
+
+bread.toggle = function()
+	(bread.active and bread.off or bread.on)()
+end
+
+bread.isOn = function()
+	return bread.active
+end
 
 bread.save = function(name)
 	bread.saves[name] = {
@@ -198,16 +213,23 @@ end
 
 bread.mousepressed = function(x, y, b)
 	local pointValid = bread.pointInPanel(x, y)
+
+	if not bread.active then return pointValid end
+
 	if pointValid then
 		if b == 1 then
 			bread.doMinimize(x, y)
 		end
 	end
+
 	return pointValid
 end
 
 bread.wheelmoved = function(x, y)
 	local pointValid = bread.pointInPanel(love.mouse.getX(), love.mouse.getY())
+
+	if not bread.active then return pointValid end
+
 	if pointValid and y ~= 0 then
 		local textHeight = bread.getTextHeight()
 		local loveHeight = love.graphics.getHeight()
@@ -219,10 +241,13 @@ bread.wheelmoved = function(x, y)
 			bread.scrollOffset = desiredScroll
 		end
 	end
+
 	return pointValid
 end
 
 bread.draw = function()
+	if not bread.active then return	end
+
 	local size = bread.getBarWidth()
 	local drawRect = function()
 		if not bread.minimized[bread.watching] then
@@ -253,16 +278,14 @@ bread.draw = function()
 	local xDepth = 0
 	local minimizeLevel = 0
 	local alreadyEnded = false
-	for finish, key, value, last, empty in bread.iter() do
-		local minimized = bread.minimized[value]
-		local filtered = bread.isFiltered(value)
+	for data in bread.iter() do
+		local minimized = bread.minimized[data.value]
 
 		if minimizeLevel == 0 then
-			if finish then
-				last = key
+			if data.finish then
 				xDepth = xDepth - 1
 				if not alreadyEnded then
-					bread.drawText("}" .. (last and "" or ","), xDepth, yDepth)
+					bread.drawText("}" .. (data.last and "" or ","), xDepth, yDepth)
 				else
 					alreadyEnded = false
 				end
@@ -278,54 +301,56 @@ bread.draw = function()
 				end
 
 				local name
-				local dispKey = type(key) ~= "number" or bread.opts.dispNumberKeys
-				name = tostring(key)
+				local dispKey = type(data.key) ~= "number" or bread.opts.dispNumberKeys
+				name = tostring(data.key)
 
-				if type(key) ~= "string" or not bread.validID(name) then
-					if type(key) == "string" then
+				if type(data.key) ~= "string" or not bread.validID(name) then
+					if type(data.key) == "string" then
 						name = "\"" .. name .. "\""
 					end
-					if type(key) == "table" or bread.isBinary(v) then
+					if type(data.key) == "table" or bread.isBinary(v) then
 						name = "<" .. name .. ">"
 					end
 					name = "[" .. name .. "]"
 				end
 
 				local strung
-				if type(value) == "table" then
-					if filtered then
-						strung = "(filtered: <" .. tostring(value) .. ">)"
+				if type(data.value) == "table" then
+					if data.filtered then
+						strung = "(filtered: <" .. tostring(data.value) .. ">)"
+					elseif data.found then
+						strung = "(found: <" .. tostring(data.value) .. ">)"
 					else
 						strung = "{"
 						if minimized then
 							strung = strung .. "...}"
-						elseif empty then
+						elseif data.empty then
 							strung = strung .. "}"
 							alreadyEnded = true
 						end
 					end
-					if (minimized or empty or filtered) and not last then
+					if (minimized or data.empty or data.filtered) and not data.last then
 						strung = strung .. ","
 					end
 				else
-					strung = tostring(value)
+					strung = tostring(data.value)
 
-					if type(value) == "string" then
+					if type(data.value) == "string" then
 						strung = "\"" .. strung .. "\""
-					elseif bread.isBinary(value) then
+					elseif bread.isBinary(data.value) then
 						strung = "<" .. strung .. ">"
 					end
 
-					if not last then
+					if not data.last then
 						strung = strung .. ","
 					end
 				end
 
 				bread.drawText((dispKey and name .. " = " or "") .. strung, xDepth, yDepth)
 
-				if minimized or filtered then
+				if minimized then
 					minimizeLevel = 1
-				elseif type(value) == "table" then
+				elseif type(data.value) == "table" and not data.filtered and not data.found then
 					xDepth = xDepth + 1
 				end
 			end
@@ -334,9 +359,9 @@ bread.draw = function()
 				yDepth = yDepth + 1
 			end
 		else
-			if finish then
+			if data.finish then
 				minimizeLevel = minimizeLevel - 1
-			elseif type(value) == "table" then
+			elseif type(data.value) == "table" and not data.filtered and not data.found then
 				minimizeLevel = minimizeLevel + 1
 			end
 		end
